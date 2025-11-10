@@ -1,16 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <title>AllyAI - Terms of Service</title>
+  <meta charset="utf-8" />
+  <title>Login with TikTok — Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f7fb}
+    .card{background:#fff;padding:28px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);width:420px;max-width:95%}
+    button{background:#010101;color:#fff;border:0;padding:12px 18px;border-radius:8px;cursor:pointer;font-size:16px}
+    small{display:block;margin-top:12px;color:#666}
+  </style>
 </head>
 <body>
-  <h1>Terms of Service</h1>
-  <p>By using AllyAI, you agree that our system may process your video, text, or AI-generated data for internal functionality. We do not collect or store personal data without consent.</p>
+  <div class="card">
+    <h2>Demo: Login with TikTok</h2>
+    <p>Một nút đơn — mở popup OAuth và trả về `code` vào redirect page.</p>
+    <div style="margin-top:18px">
+      <button id="btnLogin">Login with TikTok</button>
+    </div>
+    <small id="info">Replace <code>YOUR_CLIENT_KEY</code> và <code>REDIRECT_URI</code> trong script.</small>
+    <pre id="out" style="margin-top:12px;background:#fafafa;padding:10px;border-radius:8px;max-height:180px;overflow:auto"></pre>
+  </div>
 
-  <h2>Privacy Policy</h2>
-  <p>AllyAI respects user privacy. We do not sell or share personal data with third parties. All API tokens or content uploaded are used strictly for functional purposes only.</p>
+  <script>
+    // Cấu hình: thay bằng giá trị của bạn
+    const CLIENT_KEY = 'YOUR_CLIENT_KEY'; // <-- thay vào
+    const REDIRECT_URI = 'https://<your-domain>/tiktok-login/callback.html'; // <-- thay vào (phải match URL đã đăng ký)
+    const SCOPES = ['user.info.basic','video.upload']; // chỉnh scope theo nhu cầu
+    const STATE = 'st_'+Math.random().toString(36).slice(2,12); // random state
 
-  <p>Contact: contact@allyai.dev</p>
+    const btn = document.getElementById('btnLogin');
+    const out = document.getElementById('out');
+
+    function log(msg){
+      out.textContent = out.textContent + msg + '\n';
+    }
+
+    btn.addEventListener('click', () => {
+      if (!CLIENT_KEY || CLIENT_KEY === 'YOUR_CLIENT_KEY') {
+        alert('Thay CLIENT_KEY trong file trước khi dùng.');
+        return;
+      }
+      // build OAuth URL
+      const params = new URLSearchParams({
+        client_key: CLIENT_KEY,
+        response_type: 'code',
+        scope: SCOPES.join(' '),
+        redirect_uri: REDIRECT_URI,
+        state: STATE,
+        // optional: force_verify: 1
+      });
+      const authUrl = `https://open.tiktok.com/platform/oauth/connect?${params.toString()}`;
+
+      const w = 720, h = 700;
+      const left = Math.floor((screen.width - w) / 2);
+      const top = Math.floor((screen.height - h) / 2);
+
+      // Open popup
+      const popup = window.open(authUrl, 'tiktok_oauth', `width=${w},height=${h},left=${left},top=${top}`);
+
+      if (!popup) {
+        alert('Popup bị chặn — cho phép popup rồi thử lại.');
+        return;
+      }
+
+      log('Đã mở popup OAuth — chờ redirect...');
+
+      // Listen for message from callback page
+      function onMessage(e) {
+        // basic origin check (nếu deploy trên domain riêng, replace origin)
+        // do not rely solely on origin in production — verify state on backend
+        // accept messages with shape { type: 'tiktok_oauth', code, state, error }
+        try {
+          const msg = e.data || {};
+          if (msg && msg.type === 'tiktok_oauth') {
+            if (msg.error) {
+              log('OAuth error: ' + msg.error);
+            } else {
+              log('Got code: ' + msg.code);
+              log('State: ' + msg.state);
+              // TODO: gửi code lên backend để exchange access_token
+              // fetch('/auth/tiktok/callback', { method:'POST', body: JSON.stringify({ code: msg.code }) })
+            }
+            window.removeEventListener('message', onMessage);
+            popup.close();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      window.addEventListener('message', onMessage, false);
+    });
+  </script>
 </body>
 </html>
